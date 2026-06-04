@@ -4,7 +4,7 @@ import Dashboard from '@/components/Dashboard';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  let records = [];
+  let records: any[] = [];
 
   try {
     const dbRecords = await prisma.reconciliationResult.findMany({
