@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export async function POST(request: Request, { params }: { params: { gateway: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ gateway: string }> }) {
     try {
-        const gateway = params.gateway.toLowerCase();
+        const { gateway: rawGateway } = await context.params;
+        const gateway = rawGateway.toLowerCase();
         const body = await request.json();
         
         console.log(`[WEBHOOK] Received ${gateway} event:`, body);
