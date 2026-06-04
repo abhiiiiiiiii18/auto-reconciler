@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, CheckCircle2, DollarSign, Activity, FileSearch, ArrowRightLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle2, DollarSign, Activity, FileSearch, ArrowRightLeft, Play, Loader2 } from 'lucide-react';
+import { runReconciliationAction } from '@/app/actions';
 
 type Discrepancy = {
     order_id: string;
@@ -16,7 +18,23 @@ type Discrepancy = {
 };
 
 export default function Dashboard({ data }: { data: Discrepancy[] }) {
+    const router = useRouter();
     const [selectedRow, setSelectedRow] = useState<string | null>(null);
+    const [gateway, setGateway] = useState<string>("razorpay");
+    const [isRunning, setIsRunning] = useState(false);
+
+    const handleRunEngine = async () => {
+        setIsRunning(true);
+        const res = await runReconciliationAction(gateway);
+        setIsRunning(false);
+        
+        if (res.success) {
+            // Force the Next.js Server Component to re-read the CSV and pass down new data
+            router.refresh();
+        } else {
+            alert("Error running engine: " + res.error);
+        }
+    };
 
     const getStatusColor = (status: string) => {
         switch(status) {
@@ -48,10 +66,29 @@ export default function Dashboard({ data }: { data: Discrepancy[] }) {
                     </h1>
                     <p className="text-white/40">AI-Powered Payment Discrepancy Analysis</p>
                 </div>
-                <div className="flex gap-4">
-                    <div className="px-4 py-2 rounded-full bg-white/5 border border-white/10 flex items-center shadow-lg backdrop-blur-md">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 mr-3 animate-pulse"></div>
-                        <span className="text-sm text-white/70">Engine Active</span>
+                <div className="flex gap-4 items-center">
+                    <select 
+                        value={gateway} 
+                        onChange={(e) => setGateway(e.target.value)}
+                        className="bg-black border border-white/20 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none"
+                    >
+                        <option value="razorpay">Razorpay CSV</option>
+                        <option value="stripe">Stripe CSV</option>
+                        <option value="paypal">PayPal CSV</option>
+                    </select>
+                    
+                    <button 
+                        onClick={handleRunEngine}
+                        disabled={isRunning}
+                        className="px-6 py-2.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+                        {isRunning ? 'Processing...' : 'Run Engine'}
+                    </button>
+                    
+                    <div className="px-4 py-2.5 rounded-full bg-white/5 border border-white/10 flex items-center shadow-lg backdrop-blur-md ml-4">
+                        <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'} mr-3`}></div>
+                        <span className="text-sm text-white/70">{isRunning ? 'Working...' : 'Active'}</span>
                     </div>
                 </div>
             </header>
@@ -82,7 +119,7 @@ export default function Dashboard({ data }: { data: Discrepancy[] }) {
                 >
                     <div className="absolute top-0 right-0 p-4 text-rose-500 opacity-10 group-hover:opacity-20 transition-opacity"><AlertCircle size={64}/></div>
                     <p className="text-sm text-rose-500/70 mb-1">Discrepancies Detected</p>
-                    <p className="text-3xl font-light text-rose-400">82<span className="text-lg text-rose-400/50 ml-2">Requires Review</span></p>
+                    <p className="text-3xl font-light text-rose-400">{data.length}<span className="text-lg text-rose-400/50 ml-2">Requires Review</span></p>
                 </motion.div>
             </div>
 
@@ -164,7 +201,7 @@ export default function Dashboard({ data }: { data: Discrepancy[] }) {
                 </div>
                 {data.length === 0 && (
                     <div className="p-12 text-center text-white/40">
-                        No discrepancies found or the CSV is missing. Run the Python generation scripts first!
+                        No discrepancies found or the CSV is missing. Select a gateway and hit Run Engine!
                     </div>
                 )}
             </div>
