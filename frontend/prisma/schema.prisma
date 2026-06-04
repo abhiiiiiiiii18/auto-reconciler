@@ -30,7 +30,7 @@ model GatewayTransaction {
 
 model ReconciliationResult {
   id             String   @id @default(uuid())
-  orderId        String
+  orderId        String?
   gatewayTxnId   String?
   amount         Float
   grossAmount    Float?
