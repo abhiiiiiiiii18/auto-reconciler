@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-from dotenv import load_dotenv
 import random
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
