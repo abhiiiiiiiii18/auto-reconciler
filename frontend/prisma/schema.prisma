@@ -32,7 +32,7 @@ model ReconciliationResult {
   id             String   @id @default(uuid())
   orderId        String?
   gatewayTxnId   String?
-  amount         Float
+  amount         Float?
   grossAmount    Float?
   feeAmount      Float?
   netSettled     Float?
