@@ -1,25 +1,15 @@
 import os
 import pandas as pd
-import google.generativeai as genai
 from dotenv import load_dotenv
+import random
 
 # Load environment variables
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY:
-    print("❌ ERROR: GEMINI_API_KEY is not set in the environment or .env file.")
-    print("Please create a .env file in the backend folder and add your GEMINI_API_KEY.")
-    exit(1)
-
-genai.configure(api_key=API_KEY)
-
-# Use Gemini 1.5 Flash - extremely fast and perfect for tabular reasoning
-model = genai.GenerativeModel('gemini-1.5-flash')
-
 def explain_discrepancies():
-    print("🤖 Starting Gemini AI Anomaly Explanation...")
+    print("🤖 Starting AI Anomaly Explanation...")
     
     try:
         df = pd.read_csv("data/discrepancies_for_ai.csv")
@@ -33,46 +23,58 @@ def explain_discrepancies():
 
     print(f"📄 Found {len(df)} discrepancies to analyze.")
     explanations = []
-
-    # System prompt describing the domain
-    system_instruction = (
-        "You are an expert Financial Operations Analyst. "
-        "I will give you a discrepancy from a payment reconciliation process. "
-        "The standard payment gateway fee is 2.9% + $0.30. "
-        "Analyze the provided row and give a concise, one-sentence explanation of what likely went wrong "
-        "(e.g., 'The $5.00 discrepancy is likely due to a partial refund.', "
-        "'This transaction is missing entirely from the gateway, indicating a potential webhook failure.')"
-    )
     
-    # We will process a small batch of 10 rows for the demo to avoid waiting too long
-    # In production, we would use Gemini's batch API or larger prompts with JSON output.
+    # We will process a small batch of 10 rows for the demo
     demo_df = df.head(10).copy()
     
-    for index, row in demo_df.iterrows():
-        print(f"Analyzing Order {row['order_id']}...")
+    if API_KEY and API_KEY != "your_api_key_here":
+        print("✅ Gemini API Key found! Using real AI...")
+        import google.generativeai as genai
+        genai.configure(api_key=API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        prompt = f"""
-        {system_instruction}
+        system_instruction = (
+            "You are an expert Financial Operations Analyst. "
+            "I will give you a discrepancy from a payment reconciliation process. "
+            "The standard payment gateway fee is 2.9% + $0.30. "
+            "Analyze the provided row and give a concise, one-sentence explanation of what likely went wrong."
+        )
         
-        Row Data:
-        Order ID: {row['order_id']}
-        Internal Expected Amount: ${row['amount']}
-        Gateway Gross Amount: ${row['gross_amount']}
-        Gateway Fee: ${row['fee_amount']}
-        Gateway Net Settled: ${row['net_settled']}
-        System Matched Status: {row['match_status']}
+        for index, row in demo_df.iterrows():
+            print(f"Analyzing Order {row['order_id']}...")
+            prompt = f"{system_instruction}\n\nRow Data:\nOrder ID: {row['order_id']}\nInternal Expected Amount: ${row['amount']}\nGateway Gross Amount: ${row['gross_amount']}\nGateway Fee: ${row['fee_amount']}\nGateway Net Settled: ${row['net_settled']}\nSystem Matched Status: {row['match_status']}\n\nProvide a concise, 1-sentence explanation for this discrepancy."
+            
+            try:
+                response = model.generate_content(prompt)
+                explanation = response.text.strip()
+                print(f"  -> AI: {explanation}")
+                explanations.append(explanation)
+            except Exception as e:
+                print(f"  -> Error calling Gemini: {e}")
+                explanations.append("Failed to generate explanation due to API error.")
+    else:
+        print("⚠️ No Gemini API Key found. Using MOCK AI explanations so we can proceed to the dashboard UI...")
         
-        Provide a concise, 1-sentence explanation for this discrepancy.
-        """
-        
-        try:
-            response = model.generate_content(prompt)
-            explanation = response.text.strip()
-            print(f"  -> AI: {explanation}")
+        # Fallback to mock explanations based on the match status
+        for index, row in demo_df.iterrows():
+            print(f"Mocking Analysis for Order {row['order_id']}...")
+            if row['match_status'] == "MISSING_IN_GATEWAY":
+                exps = [
+                    "This transaction exists in our DB but was never processed by the gateway, likely a failed webhook or abandoned checkout.",
+                    "The user initiated the order but closed the gateway tab before completing the payment."
+                ]
+                explanation = random.choice(exps)
+            elif row['match_status'] == "ORPHAN_GATEWAY_TXN":
+                explanation = "This transaction was settled by the gateway but the corresponding order cannot be found in our internal database."
+            elif row['match_status'] == "FUZZY_MATCH_FEE_ERROR":
+                explanation = "The discrepancy is exactly equal to the standard gateway fee, meaning the gross amount was recorded incorrectly."
+            elif row['match_status'] == "AMOUNT_MISMATCH":
+                explanation = f"The gateway settled ${row['gross_amount']} instead of ${row['amount']}, which usually indicates a partial refund was issued."
+            else:
+                explanation = "The AI identified an unknown anomaly requiring manual review."
+                
+            print(f"  -> Mock AI: {explanation}")
             explanations.append(explanation)
-        except Exception as e:
-            print(f"  -> Error calling Gemini: {e}")
-            explanations.append("Failed to generate explanation due to API error.")
             
     demo_df["ai_explanation"] = explanations
     
