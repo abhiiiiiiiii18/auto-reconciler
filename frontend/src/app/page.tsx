@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import Dashboard from '@/components/Dashboard';
 
 export const dynamic = 'force-dynamic';
-const prisma = new PrismaClient();
 
 export default async function Home() {
   let records = [];
