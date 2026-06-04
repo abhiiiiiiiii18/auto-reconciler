@@ -12,7 +12,7 @@ def explain_discrepancies():
     
     try:
         engine = create_engine("postgresql://postgres:password@localhost:5432/reconciler")
-        df = pd.read_sql('SELECT * FROM "ReconciliationResult" WHERE "aiExplanation" = \'\' LIMIT 15', engine)
+        df = pd.read_sql('SELECT * FROM "ReconciliationResult" WHERE "aiExplanation" = \'\'', engine)
     except Exception as e:
         print(f"❌ ERROR: Failed to read from Postgres: {e}")
         return
