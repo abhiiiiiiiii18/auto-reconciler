@@ -1,13 +1,43 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model InternalOrder {
+  id        String   @id @default(uuid())
+  orderId   String   @unique
+  amount    Float
+  currency  String   @default("USD")
+  status    String   @default("PAID")
+  createdAt DateTime @default(now())
+}
+
+model GatewayTransaction {
+  id             String   @id @default(uuid())
+  gatewayTxnId   String   @unique
+  gateway        String   // "razorpay", "stripe", "paypal"
+  orderRefId     String?
+  grossAmount    Float
+  feeAmount      Float
+  netSettled     Float
+  settlementDate DateTime
+  status         String   @default("SETTLED")
+  createdAt      DateTime @default(now())
+}
+
+model ReconciliationResult {
+  id             String   @id @default(uuid())
+  orderId        String
+  gatewayTxnId   String?
+  amount         Float
+  grossAmount    Float?
+  feeAmount      Float?
+  netSettled     Float?
+  matchStatus    String
+  aiExplanation  String?
+  createdAt      DateTime @default(now())
 }
