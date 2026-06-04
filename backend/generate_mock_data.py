@@ -109,3 +109,41 @@ df_paypal.to_csv("data/paypal_settlement_report.csv", index=False)
 print(f"✅ Generated {len(orders)} internal orders")
 print(f"✅ Generated {len(gateway_txns)} gateway transactions for Razorpay, Stripe, and PayPal.")
 print("📁 Saved to: backend/data/")
+
+print("\n🚀 Pushing Mock Data to PostgreSQL Database for V2 Feature...")
+try:
+    from sqlalchemy import create_engine
+    engine = create_engine("postgresql://postgres:password@localhost:5432/reconciler")
+    
+    # Push Internal Orders
+    db_orders = []
+    for o in orders:
+        db_orders.append({
+            "id": str(uuid.uuid4()),
+            "orderId": o["order_id"],
+            "amount": o["amount"],
+            "currency": o["currency"],
+            "status": o["status"],
+            "createdAt": o["created_at"]
+        })
+    pd.DataFrame(db_orders).to_sql("InternalOrder", engine, if_exists="append", index=False)
+    
+    # Push Gateway Transactions (Simulating Webhooks)
+    db_txns = []
+    for g in gateway_txns:
+        db_txns.append({
+            "id": str(uuid.uuid4()),
+            "gatewayTxnId": g["gateway_txn_id"],
+            "gateway": "stripe", # Mocking everything as stripe in DB
+            "orderRefId": g["order_ref_id"],
+            "grossAmount": g["gross_amount"],
+            "feeAmount": g["fee_amount"],
+            "netSettled": g["net_settled"],
+            "settlementDate": g["settlement_date"],
+            "status": g["status"],
+            "createdAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    pd.DataFrame(db_txns).to_sql("GatewayTransaction", engine, if_exists="append", index=False)
+    print("✅ Successfully pushed mock data to PostgreSQL!")
+except Exception as e:
+    print(f"⚠️ Could not push to Postgres (is it running?): {e}")
