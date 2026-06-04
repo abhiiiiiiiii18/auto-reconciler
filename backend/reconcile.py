@@ -85,6 +85,33 @@ def run_reconciliation():
     final_discrepancies.to_csv("data/discrepancies_for_ai.csv", index=False)
     print("📁 Discrepancies saved to data/discrepancies_for_ai.csv for AI analysis.")
     
+    # Save to Postgres 'ReconciliationResult' table for Accounting Sync Feature
+    try:
+        from sqlalchemy import text
+        # Ensure correct column casing for Prisma ReconciliationResult
+        db_results = final_discrepancies.rename(columns={
+            "order_id": "orderId",
+            "gateway_txn_id": "gatewayTxnId",
+            "gross_amount": "grossAmount",
+            "fee_amount": "feeAmount",
+            "net_settled": "netSettled",
+            "match_status": "matchStatus"
+        })
+        # AI explanation is empty initially, populated later by AI agent
+        db_results["aiExplanation"] = ""
+        
+        db_results["id"] = [str(uuid.uuid4()) for _ in range(len(db_results))]
+        db_results["createdAt"] = datetime.datetime.now()
+        
+        # Clear old results to prevent duplicates on rerun
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM \"ReconciliationResult\""))
+            
+        db_results.to_sql("ReconciliationResult", engine, if_exists="append", index=False)
+        print("✅ Discrepancies successfully synced to PostgreSQL!")
+    except Exception as e:
+        print(f"⚠️ Could not save to Postgres: {e}")
+    
     return final_discrepancies
 
 if __name__ == "__main__":
