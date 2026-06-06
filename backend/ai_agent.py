@@ -1,15 +1,25 @@
 import os
 import pandas as pd
-import random
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+import google.generativeai as genai
 
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 
+if API_KEY:
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    model = None
+
 def explain_discrepancies():
     print("🤖 Starting AI Anomaly Explanation (V2 Postgres Mode)...")
     
+    if not model:
+        print("❌ ERROR: GEMINI_API_KEY is missing. Please set it in .env")
+        return
+
     try:
         engine = create_engine("postgresql://postgres:password@localhost:5432/reconciler")
         df = pd.read_sql('SELECT * FROM "ReconciliationResult" WHERE "aiExplanation" = \'\'', engine)
@@ -25,18 +35,26 @@ def explain_discrepancies():
     
     with engine.begin() as conn:
         for index, row in df.iterrows():
-            print(f"Mocking Analysis for Order {row['orderId']}...")
-            if row['matchStatus'] == "MISSING_IN_GATEWAY":
-                explanation = "The user initiated the order but closed the gateway tab before completing the payment."
-            elif row['matchStatus'] == "ORPHAN_GATEWAY_TXN":
-                explanation = "This transaction was settled by the gateway but the corresponding order cannot be found in our internal database."
-            elif row['matchStatus'] == "FUZZY_MATCH_FEE_ERROR":
-                explanation = "The discrepancy is exactly equal to the standard gateway fee, meaning the gross amount was recorded incorrectly."
-            elif row['matchStatus'] == "AMOUNT_MISMATCH":
-                explanation = f"The gateway settled ${row['grossAmount']} instead of ${row['amount']}, which usually indicates a partial refund was issued."
-            else:
-                explanation = "The AI identified an unknown anomaly requiring manual review."
-                
+            print(f"Analyzing Order {row['orderId']} with Gemini...")
+            
+            prompt = f"""
+            Analyze the following financial reconciliation discrepancy and provide a short, 1-sentence explanation of what likely happened.
+            
+            Order ID: {row['orderId']}
+            Internal System Amount: {row['amount']}
+            Gateway Settled Amount: {row['grossAmount']}
+            Match Status: {row['matchStatus']}
+            
+            Explanation:
+            """
+            
+            try:
+                response = model.generate_content(prompt)
+                explanation = response.text.strip()
+            except Exception as e:
+                print(f"  -> Error calling Gemini: {e}")
+                explanation = "AI analysis failed due to API error."
+
             print(f"  -> AI: {explanation}")
             stmt = text('UPDATE "ReconciliationResult" SET "aiExplanation" = :exp WHERE "id" = :rid')
             conn.execute(stmt, {"exp": explanation, "rid": row['id']})
