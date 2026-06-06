@@ -2,16 +2,15 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-import google.generativeai as genai
+from google import genai
 
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if API_KEY:
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = genai.Client(api_key=API_KEY)
 else:
-    model = None
+    client = None
 
 def explain_discrepancies():
     print("🤖 Starting AI Anomaly Explanation (V2 Postgres Mode)...")
@@ -49,7 +48,10 @@ def explain_discrepancies():
             """
             
             try:
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash',
+                    contents=prompt
+                )
                 explanation = response.text.strip()
             except Exception as e:
                 print(f"  -> Error calling Gemini: {e}")
