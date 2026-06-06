@@ -2,22 +2,18 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-from google import genai
+from openai import OpenAI
 
 load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
 
-if API_KEY:
-    client = genai.Client(api_key=API_KEY)
-else:
-    client = None
+# Connect to the local Ollama instance using the OpenAI-compatible endpoint
+client = OpenAI(
+    base_url='http://localhost:11434/v1',
+    api_key='ollama'  # required but unused by Ollama
+)
 
 def explain_discrepancies():
-    print("🤖 Starting AI Anomaly Explanation (V2 Postgres Mode)...")
-    
-    if not client:
-        print("❌ ERROR: GEMINI_API_KEY is missing. Please set it in .env")
-        return
+    print("🤖 Starting AI Anomaly Explanation (Local Ollama Mode)...")
 
     try:
         engine = create_engine("postgresql://postgres:password@localhost:5432/reconciler")
@@ -34,7 +30,7 @@ def explain_discrepancies():
     
     with engine.begin() as conn:
         for index, row in df.iterrows():
-            print(f"Analyzing Order {row['orderId']} with Gemini...")
+            print(f"Analyzing Order {row['orderId']} with Local Qwen...")
             
             prompt = f"""
             Analyze the following financial reconciliation discrepancy and provide a short, 1-sentence explanation of what likely happened.
@@ -48,20 +44,22 @@ def explain_discrepancies():
             """
             
             try:
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt
+                response = client.chat.completions.create(
+                    model='qwen2.5:7b',
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3
                 )
-                explanation = response.text.strip()
+                explanation = response.choices[0].message.content.strip()
             except Exception as e:
-                print(f"  -> Error calling Gemini: {e}")
-                explanation = "AI analysis failed due to API error."
+                print(f"  -> Error calling local model: {e}")
+                explanation = "AI analysis failed due to local API error."
 
             print(f"  -> AI: {explanation}")
             stmt = text('UPDATE "ReconciliationResult" SET "aiExplanation" = :exp WHERE "id" = :rid')
             conn.execute(stmt, {"exp": explanation, "rid": row['id']})
             
-    print("✅ AI Analysis complete! Saved to PostgreSQL.")
+    print("✅ Local AI Analysis complete! Saved to PostgreSQL.")
 
 if __name__ == "__main__":
     explain_discrepancies()
+
