@@ -15,7 +15,7 @@ else:
 def explain_discrepancies():
     print("🤖 Starting AI Anomaly Explanation (V2 Postgres Mode)...")
     
-    if not model:
+    if not client:
         print("❌ ERROR: GEMINI_API_KEY is missing. Please set it in .env")
         return
 
@@ -49,7 +49,7 @@ def explain_discrepancies():
             
             try:
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash',
+                    model='gemini-2.5-flash',
                     contents=prompt
                 )
                 explanation = response.text.strip()
